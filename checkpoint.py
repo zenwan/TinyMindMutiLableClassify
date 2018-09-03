@@ -6,8 +6,8 @@
 import os
 import torch
 
-def save_checkpoint(state, address):
-    name = 'model_parameters.pth.tar'
+def save_checkpoint(state, address, index):
+    name = 'model_parameters.pth_%d.tar' % index
 
     folder = os.path.exists(address)
     if not folder:

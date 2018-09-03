@@ -25,19 +25,35 @@ class LoadData():
         for file in tqdm(self.file_train):
             image = self.get_image(file)
             images.append(image)
-
+        print('Train data loaded')
         return images, self.label_train
+
+    def get_test_data(self):
+        images = []
+        for file in tqdm(self.file_test):
+            image = self.get_image(file)
+            images.append(image)
+        print('Test data loaded')
+        return images, self.label_test
 
     def get_eval_data(self):
         images = []
-        for file in tqdm(self.file_eval):
-            image = self.get_image(file)
-            images.append(image)
+        path_bin = self.root_path + 'binary_data\\eval_data.npy'
+        if os.path.exists(path_bin):
+            images = np.load(path_bin)
+        else:
+            files = self.get_files('valid\\')
+            for file in tqdm(files):
+                image = self.get_image(file)
+                images.append(image)
+            datas = np.array(images, dtype=np.uint8)
+            np.save(path_bin, datas)
 
-        return images, self.label_eval
+        print('Evalution datas loaded')
+        return images
 
     def show_images(self):
-        images, _ = self.get_eval_data()
+        images, _ = self.get_test_data()
         fig, axes = plt.subplots(6, 6, figsize=(20, 20))
 
         j = 0
@@ -49,16 +65,15 @@ class LoadData():
     def load_data(self):
         labels = self.load_tag_train()
         files = self.load_train_csv()
-        hash_tag = self.hash_tag()
         index = np.arange(0, len(files), 1, dtype=np.int)
         np.random.seed(123)
         np.random.shuffle(index)
-        index_eval = index[:int(len(files) * 0.99)]
-        index_train = index[int(len(files) * 0.99):]
+        index_test = index[:int(len(files) * 0.1)]
+        index_train = index[int(len(files) * 0.1):]
         self.file_train = files[index_train]
         self.label_train = labels[index_train]
-        self.file_eval = files[index_eval]
-        self.label_eval = labels[index_eval]
+        self.file_test = files[index_test]
+        self.label_test = labels[index_test]
         np.random.seed()
 
     def get_files(self, folder_name):
@@ -91,6 +106,10 @@ class LoadData():
             line = line.strip()  # 去掉每行头尾空白
             hash_tag[i] = line
             i += 1
+        # print(hash_tag[2608])
+        # print(hash_tag[3037])
+        # print(hash_tag[3782])
+        # print(hash_tag[550])
         return hash_tag
 
     def get_image(self, file):
@@ -114,6 +133,17 @@ class ImageSet(data.Dataset):
         return len(self.datas)
 
 
+class EvalSet(data.Dataset):
+    def __init__(self, data=None):
+        self.datas = data
+
+    def __getitem__(self, index):
+        return torch.from_numpy(self.datas[index])
+
+    def __len__(self):
+        return len(self.datas)
+
+
 class Sets:
     def __init__(self):
         self.ld = LoadData()
@@ -122,5 +152,18 @@ class Sets:
     def get_train_set(self):
         return ImageSet(self.ld.get_train_data())
 
+    def get_test_set(self):
+        return ImageSet(self.ld.get_test_data())
+
     def get_eval_set(self):
-        return ImageSet(self.ld.get_eval_data())
+        return EvalSet(self.ld.get_eval_data())
+
+    def get_pre_tags(self, index):
+        tags = self.ld.hash_tag()
+        pre_tags = []
+        for each_image in index:
+            each_image_tags = []
+            for i in each_image:
+                each_image_tags.append(tags[i])
+            pre_tags.append(each_image_tags)
+        return pre_tags

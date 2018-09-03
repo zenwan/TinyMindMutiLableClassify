@@ -8,9 +8,7 @@ __author__ = 'Ma Cong'
 
 import torch
 import torch.optim as optim
-import torch.nn as nn
-from torchvision import models
-from tqdm import tqdm
+import numpy as np
 from datetime import datetime
 
 import checkpoint as cp
@@ -27,13 +25,13 @@ class BaseTrain:
         self.batch_size = batch_size
         self.model = net.cuda() if self.cuda_is_ok else net
         self.criterion = torch.nn.MultiLabelSoftMarginLoss()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=1e-3, betas=(0.9, 0.999), weight_decay=0)
-        # self.optimizer = optim.SGD(self.model.parameters(), lr=1e-3, weight_decay=0)
+        # self.optimizer = optim.Adam(self.model.parameters(), lr=1e-3, betas=(0.9, 0.999), weight_decay=0)
+        self.optimizer = optim.SGD(self.model.parameters(), lr=1e-3, weight_decay=1e-5)
         sets = load_data.Sets()
         trainset = sets.get_train_set()
         self.trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True)
-        # evalset = sets.get_eval_set()
-        # self.evalloader = torch.utils.data.DataLoader(evalset, batch_size=batch_size, shuffle=True)
+        testset = sets.get_test_set()
+        self.testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size, shuffle=True)
 
     def train(self, checkpoint_path):
         # 是否装载模型参数
@@ -50,11 +48,10 @@ class BaseTrain:
             self.train_one_epoch(epoch)
 
             # 保存参数
-            checkpoint = {'epoch': epoch, 'state_dict': self.model.state_dict(),
-                          'optimizer': self.optimizer.state_dict()}
-            cp.save_checkpoint(checkpoint, address=checkpoint_path)
+            checkpoint = {'epoch': epoch, 'state_dict': self.model.state_dict()}
+            cp.save_checkpoint(checkpoint, address=checkpoint_path, index=epoch)
 
-            #self.eval(epoch)
+            self.test(epoch)
 
     def train_one_epoch(self, epoch):
         self.model.train()
@@ -62,54 +59,66 @@ class BaseTrain:
         print(now())
         print('Begin training...')
         for batch_index, (datas, labels) in enumerate(self.trainloader, 0):
-            datas = torch.tensor(datas, dtype=torch.float, device=self.cuda)
+            datas = torch.tensor(datas, dtype=torch.float, device=self.cuda, requires_grad=False)
             datas = datas.view(-1, 3, self.img_size[0], self.img_size[1])
             #labels = labels.max(1)[1]
             labels = torch.tensor(labels, dtype=torch.float, device=self.cuda)
-            if self.cuda_is_ok:
-                datas = datas.cuda()
-                labels = labels.cuda()
             self.optimizer.zero_grad()
             outputs = self.model(datas)
             loss = self.criterion(outputs, labels)
             loss.backward()
             self.optimizer.step()
 
-            if batch_index % 1 == 0:
-                y_true = labels.numpy()
-                y_pred = outputs.detach().numpy()
+            if batch_index % 100 == 0:
+                y_true = labels.cpu().numpy()
+                y_pred = outputs.cpu().detach().numpy()
+                y_pred = sigmoid(y_pred)
+                #print_list(y_pred, labels, batch_index)
                 predict = utils.precision(y_true, y_pred)
                 recall = utils.recall(y_true, y_pred)
                 fmeasure = utils.fmeasure(predict, recall)
                 print('batch_index: [%d/%d]' % (batch_index, len(self.trainloader)),
                       'Train epoch: [%d]' % epoch,
-                      'Loss:%.4f' % loss,
-                      'Predict:%.4f' % predict,
-                      'Recall:%.4f' % recall,
-                      'F-measure:%.4f' % fmeasure)
+                      'Loss:%.6f' % loss,
+                      'Predict:%.6f' % predict,
+                      'Recall:%.6f' % recall,
+                      'F-measure:%.6f' % fmeasure)
                 print(now())
 
-    def eval(self, epoch):
+    def test(self, epoch):
         self.model.eval()
-        for batch_index, (datas, labels) in enumerate(self.evalloader, 0):
-            datas = torch.tensor(datas, dtype=torch.float, device=self.cuda)
+        for batch_index, (datas, labels) in enumerate(self.testloader, 0):
+            datas = torch.tensor(datas, dtype=torch.float, device=self.cuda, requires_grad=True)
             datas = datas.view(-1, 3, self.img_size[0], self.img_size[1])
-            labels = labels.max(1)[1]
-            labels = torch.tensor(labels, dtype=torch.long, device=self.cuda)
+            labels = torch.tensor(labels, dtype=torch.float, device=self.cuda)
             outputs = self.model(datas)
 
-            y_true = labels.numpy()
-            y_pred = outputs.detach().numpy()
-            predict = utils.precision(y_true, y_pred)
-            recall = utils.recall(y_true, y_pred)
-            fmeasure = utils.fmeasure(predict, recall)
-            print('batch_index: [%d/%d]' % (batch_index, len(self.trainloader)),
-                  'Train epoch: [%d]' % epoch,
-                  'Predict:%.4f' % predict,
-                  'Recall:%.4f' % recall,
-                  'F-measure:%.4f' % fmeasure)
-            print(now())
+            if batch_index % 100 == 0:
+                y_true = labels.cpu().numpy()
+                y_pred = outputs.cpu().detach().numpy()
+                y_pred = sigmoid(y_pred)
+                predict = utils.precision(y_true, y_pred)
+                recall = utils.recall(y_true, y_pred)
+                fmeasure = utils.fmeasure(predict, recall)
+                print('batch_index: [%d/%d]' % (batch_index, len(self.testloader)),
+                      'Train epoch: [%d]' % epoch,
+                      'Predict:%.6f' % predict,
+                      'Recall:%.6f' % recall,
+                      'F-measure:%.6f' % fmeasure)
+                print(now())
 
 
 def now():
     return datetime.now().strftime('%c')
+
+
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+
+
+def print_list(x, y, index):
+    import pandas as pd
+
+    d = {'x': x[0], 'y': y[0]}
+    list = pd.DataFrame(data=d)
+    list.to_csv('test%d.csv' % index)

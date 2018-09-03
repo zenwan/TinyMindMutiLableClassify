@@ -14,7 +14,7 @@ def precision(y_true, y_pred):
     # Calculates the precision
     true_positives = np.sum(np.round(np.clip(y_true * y_pred, 0, 1)))
     predicted_positives = np.sum(np.round(np.clip(y_pred, 0, 1)))
-    precision = true_positives / (predicted_positives + 1e6)
+    precision = true_positives / (predicted_positives + 1e-6)
     return precision
 
 
@@ -22,7 +22,7 @@ def recall(y_true, y_pred):
     # Calculates the recall
     true_positives = np.sum(np.round(np.clip(y_true * y_pred, 0, 1)))
     possible_positives = np.sum(np.round(np.clip(y_true, 0, 1)))
-    recall = true_positives / (possible_positives + 1e6)
+    recall = true_positives / (possible_positives + 1e-6)
     return recall
 
 
@@ -38,10 +38,14 @@ def fbeta_score(y_true, y_pred, beta=1):
     p = precision(y_true, y_pred)
     r = recall(y_true, y_pred)
     bb = beta ** 2
-    fbeta_score = (1 + bb) * (p * r) / (bb * p + r + 1e6)
+    fbeta_score = (1 + bb) * (p * r) / (bb * p + r + 1e-6)
     return fbeta_score
 
 
 def fmeasure(p, r):
     # Calculates the f-measure, the harmonic mean of precision and recall.
-    return 2 * (p * r) / (p + r + 1e6)
+    return 2 * (p * r) / (p + r + 1e-6)
+
+
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))

@@ -22,7 +22,7 @@ def main():
     '''main function'''
     parser = argparse.ArgumentParser()
     parser.add_argument('--state', default='train', help='train or eval or data')
-    parser.add_argument('--batch', default=32, type=int, help='batch size')
+    parser.add_argument('--batch', default=4, type=int, help='batch size')
     parser.add_argument('--epoch', default=10, type=int, help='epoch count')
     parser.add_argument('--checkpoint', default='checkpoints\\', help='模型存储位置')
     parser.add_argument('--dropout', default=0.5, help='drop的概率')
@@ -38,12 +38,14 @@ def main():
 
     if opt.state == 'train':
         #train = BaseTrain(models.Net(), (opt.imgwidth, opt.imgheight), opt.epoch, opt.batch, opt.use_gpu)
-        # train = TrainRes50(models.net_res50(), (opt.imgwidth, opt.imgheight), opt.epoch, opt.batch, opt.use_gpu)
-        train = TrainVgg16(models.net_vgg16(), (opt.imgwidth, opt.imgheight), opt.epoch, opt.batch, opt.use_gpu)
+        train = TrainRes50(models.net_res50(), (opt.imgwidth, opt.imgheight), opt.epoch, opt.batch, opt.use_gpu)
+        #train = TrainVgg16(models.net_vgg16(), (opt.imgwidth, opt.imgheight), opt.epoch, opt.batch, opt.use_gpu)
         train.train(opt.checkpoint)
 
     elif opt.state == 'eval':
-        pass
+        import base_eval
+        eval = base_eval.BaseEval(models.net_vgg16(), (opt.imgwidth, opt.imgheight))
+        eval.eval(opt.checkpoint)
 
     elif opt.state == 'data':
         ld = load_data.LoadData()
